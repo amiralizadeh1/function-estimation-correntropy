@@ -1,0 +1,16 @@
+import numpy as np
+def snr(Y,N):
+	sumY=0
+	sumN=0
+	for k1 in range(len(Y)):
+		Y2 = np.power(Y,2)
+		sumY = sumY + Y2[k1]
+		powY = sumY/len(Y)
+		
+	for k2 in range(len(N)):
+		N2 = np.power(N,2)
+		sumN = sumN + N2[k2]
+		powN = sumN/len(N)
+		
+	SNR=10*np.log10(powY/powN)
+	return SNR
