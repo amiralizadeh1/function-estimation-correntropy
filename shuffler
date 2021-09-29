@@ -1,0 +1,18 @@
+import random
+def getperm(l):
+	rnd_seed=1
+	seed = sum(l)
+	random.seed(rnd_seed)
+	perm = list(range(len(l)))
+	random.shuffle(perm)
+	#random.seed()  # optional, in order to not impact other code based on random
+	return perm
+def shuffle(l):
+	perm = getperm(l)
+	l[:] = [l[j] for j in perm]
+def unshuffle(l):
+	perm = getperm(l)
+	res = [None] * len(l)
+	for i, j in enumerate(perm):
+		res[j] = l[i]
+	l[:] = res
