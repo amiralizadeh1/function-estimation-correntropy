@@ -1,0 +1,170 @@
+# Predict a sine function using Neural Network + Monte Carlo iterations+ Levenberg-Marquardt + heavy-tailed noise (cauchy and exponential)
+## + Maximum Correntropy Criterion (MCC)
+
+np_seed=3
+monte_carlo_iterations = 5 ## number of monte carlo iterations. the larger, the more accurate results
+n_points = 600
+scale = 0.03 ## this parameter determines the magnitude of heavy-tailed noise distributions
+bw = 2 ## this parameter determines the bandwidth of correntropy in Maximum Correntropy Criterion (MCC)
+
+#import tensorflow as tf
+import numpy as np
+np.random.seed(np_seed)
+import pyrennn_mcc2 as prn
+#import pyrennn as p
+import winsound
+import time
+import pylab as pl
+import shuffler as sh
+import snr_calc as s
+
+start = time.time()
+
+history = []
+for k1 in range(monte_carlo_iterations):
+    history.append(0)
+
+yn= []
+for k1 in range(monte_carlo_iterations):
+    yn.append(0)
+    
+y_out = []
+for k1 in range(monte_carlo_iterations):
+    y_out.append(0)
+
+test_y = []
+for k1 in range(monte_carlo_iterations):
+    test_y.append(0)
+    
+snrr = []
+for k1 in range(monte_carlo_iterations):
+    snrr.append(0)
+
+def alt(a): ## this function selects every other list element starting from 0
+    return a[::2]
+def alt1(a): ## this function selects every other list element starting from 1
+    return a[1::2]
+
+def nn(N_POINTS,SCALE,BW): ## this function is the main body of the project which is run 'monte_carlo_iterations' times.
+    x = np.linspace(-2.0 * np.pi, 2.0 * np.pi,  n_points).reshape(1, -1) ## input data for the neural network (NN)
+    y = np.sin(x) ##target data for the neural network (NN)
+#    n = np.random.exponential(0.2,n_points).reshape(1, -1)
+#    n = np.random.normal(0,0.01,n_points).reshape(1,-1)
+    n = np.random.standard_cauchy(n_points).reshape(1, -1)*scale
+    yn = y + n ## create noisy target samples
+
+    ## data samples are put together in a 3*n_points matrix
+    data=np.append(x,y,axis=0)
+    data=np.append(data,yn,axis=0) 
+    
+    
+    ## split data to train and test datasets of equal size.
+    train_x=alt(data[0,:])
+    train_y=alt(data[1,:])
+    train_yn=alt(data[2,:])
+    test_x=alt1(data[0,:])
+    test_y=alt1(data[1,:])
+
+    ## shuffle data samples
+    sh.shuffle(train_x)
+    sh.shuffle(train_y)
+    sh.shuffle(train_yn)
+
+    ## create and parameterize the levenberg-marquardt NN
+    net = prn.CreateNN([1,10,10,1],BW) ## set number of layers and number of neurons and specify the bandwidth of correntropy
+    net = prn.train_LM(train_x,train_yn,net,verbose=False,k_max=100,E_stop=1e-9,dampfac=3.0,dampconst=10,min_E_step=1e-9)
+    y_out = prn.NNOut(test_x,net)
+    
+    print(f'length of training data is {len(train_x)} and length of testing data is {len(test_x)}')
+    
+    ##plot noisy data
+    pl.plot(yn[0])
+    pl.xlabel('Samples')
+    pl.ylabel('Values')
+    pl.title('Noisy Data for Training and testing')
+    pl.legend(['Noisy Data'],loc='upper right')
+    #pl.savefig('plot.png',dpi=300,bbox_inches='tight')
+    pl.show()
+
+
+    ##compare NN output and expected output for this iteration
+    pl.plot(y_out)
+    pl.plot(test_y)
+    pl.xlabel('Samples')
+    pl.ylabel('Values')
+    pl.title('Comparing Neural Network Output with Expected Output')
+    pl.legend(['Neural Network Output','Target Data'],loc='upper right')
+    pl.ylim([-2,2])
+    #pl.savefig('plot.png',dpi=300,bbox_inches='tight')
+    pl.show()
+
+    ## plot the Difference Between NN Output and Expected output
+    pl.plot(y_out-test_y)
+    pl.xlabel('Samples')
+    pl.ylabel('Values')
+    pl.title('Difference Between NN Output and Expected Output')
+    pl.legend(['Difference'],loc='upper right')
+    #pl.savefig('plot.png',dpi=300,bbox_inches='tight')
+    pl.show()
+    SNR = s.snr(y[0],n[0]) ## Calcutes Signal to Noise Ratio (SNR)
+    print(f'SNR for this iteration is {SNR}')
+    return net['ErrorHistory'] ,yn[0].tolist(),y_out.tolist(),test_y.tolist(),SNR
+
+
+
+## for each iteration, DIFFERENT data and noise samples are fed to a DIFFERENT NN weights    
+for k in range(monte_carlo_iterations):
+    print(f'MONTE CARLO NUMBER {k+1}:')
+    history[k], yn[k], y_out[k], test_y[k], snrr[k] = nn(n_points,scale,bw)
+    print(f'MONTE CARLO NUMBER {k+1} DONE')
+
+## calculate mean results
+snrr_mean = (np.mean(snrr)) ## mean of snr over all iterations
+yn_mean = (np.mean(yn,0)) ## mean of noisy target data over all iterations
+y_out_mean = (np.mean(y_out,0)) ## mean of NN output data over all iterations
+test_y_mean = (np.mean(test_y,0)) ## mean of test data over all iterations
+
+print(f'mean resuts over {monte_carlo_iterations} iterations:')  
+
+## mean of noisy targets over all iterations
+pl.plot(yn_mean)
+pl.xlabel('Samples')
+pl.ylabel('Values')
+pl.title('mean noise')
+pl.legend(['mean noise'],loc='upper right')
+#pl.savefig('plot.png',dpi=300,bbox_inches='tight')
+pl.show()
+
+## mean results over all iterations for comparing NN output and expected output samples
+pl.plot(y_out_mean)
+pl.plot(test_y_mean)
+pl.xlabel('Samples')
+pl.ylabel('Values')
+pl.title('Comparing Neural Network Output with Target Data')
+pl.legend(['Neural Network Output by LM_MCC','Target Data'],loc='lower right')
+pl.ylim([-2,2])
+pl.savefig('sine_mcc.jpg',dpi=300,bbox_inches='tight')
+pl.show()
+
+## plot learning history
+historyy=[]
+for k in range(monte_carlo_iterations):
+    if len(history[k])==100: ## this condition helps exclude early-stopped iterations from overal history
+        historyy.append(history[k])
+history_mean = (np.mean(historyy,0)) ## mean results over all iterations
+pl.plot(history_mean)
+pl.xlabel('epochs')
+pl.ylabel('mse')
+pl.title('learning curve')
+pl.legend(['error history'],loc='upper right')
+pl.ylim([0,100])
+pl.savefig('history_mcc.jpg',dpi=300,bbox_inches='tight')
+pl.show()
+
+
+print(f'snrr_mean is {snrr_mean}')
+E=sum((test_y_mean-y_out_mean)**2)
+print(f'kernel bandwidth={bw} and E={E}')
+end = time.time()
+print(f"Runtime of the program is {end - start}")
+winsound.Beep(1000,700)
