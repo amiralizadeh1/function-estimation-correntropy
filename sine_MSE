@@ -1,7 +1,7 @@
 #predict sine function + monte carlo
 
-np_seed = 3
-monte_carlo_iterations = 5 ## number of monte carlo iterations. the larger, the more accurate results
+np_seed = 5
+monte_carlo_iterations = 10 ## number of monte carlo iterations. the larger, the more accurate results
 n_points = 600
 scale = 0.03  ## this parameter determines the magnitude of heavy-tailed noise distributions
 
